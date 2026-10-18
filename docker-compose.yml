@@ -1,0 +1,53 @@
+services:
+
+  traefik:
+    image: traefik:${TRAEFIK_VERSION:-v3.6.1}
+    container_name: ${TRAEFIK_CONTAINER_NAME:-traefik}
+    restart: ${TRAEFIK_RESTART:-unless-stopped}
+
+    security_opt:
+      - no-new-privileges:true
+
+    ports:
+      - "${HTTP_PORT:-80}:${TRAEFIK_WEB_PORT:-80}"
+      - "${HTTPS_PORT:-443}:${TRAEFIK_WEBSECURE_PORT:-443}"
+
+    environment:
+      # Log / API
+      TRAEFIK_LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      TRAEFIK_API_DASHBOARD: ${DASHBOARD_ENABLED:-true}
+      TRAEFIK_API_INSECURE: ${DASHBOARD_INSECURE:-false}
+
+      # Entrypoints
+      TRAEFIK_ENTRYPOINTS_WEB_ADDRESS: ":${TRAEFIK_WEB_PORT:-80}"
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_ADDRESS: ":${TRAEFIK_WEBSECURE_PORT:-443}"
+      TRAEFIK_ENTRYPOINTS_WEB_HTTP_REDIRECTIONS_ENTRYPOINT_TO: ${HTTP_REDIRECT_TO:-websecure}
+      TRAEFIK_ENTRYPOINTS_WEB_HTTP_REDIRECTIONS_ENTRYPOINT_SCHEME: ${HTTP_REDIRECT_SCHEME:-https}
+
+      # Docker provider — network must match TRAEFIK_NETWORK
+      TRAEFIK_PROVIDERS_DOCKER: "true"
+      TRAEFIK_PROVIDERS_DOCKER_ENDPOINT: ${DOCKER_ENDPOINT:-unix:///var/run/docker.sock}
+      TRAEFIK_PROVIDERS_DOCKER_EXPOSEDBYDEFAULT: ${EXPOSED_BY_DEFAULT:-false}
+      TRAEFIK_PROVIDERS_DOCKER_NETWORK: ${TRAEFIK_NETWORK:-traefik}
+
+      # File provider (dynamic modules)
+      TRAEFIK_PROVIDERS_FILE_DIRECTORY: /etc/traefik/dynamic
+      TRAEFIK_PROVIDERS_FILE_WATCH: ${FILE_WATCH:-true}
+
+      # Let's Encrypt
+      TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
+      TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_STORAGE: /letsencrypt/acme.json
+      TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_HTTPCHALLENGE_ENTRYPOINT: web
+      TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_CASERVER: ${ACME_CA_SERVER:-https://acme-v02.api.letsencrypt.org/directory}
+
+    volumes:
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro
+      - ./dynamic:/etc/traefik/dynamic:ro
+      - ./letsencrypt:/letsencrypt
+
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    name: ${TRAEFIK_NETWORK:-traefik}
